@@ -62,6 +62,15 @@ type ExtractValidationResponse<VF> = VF extends (value: any, c: any) => infer R
           : never
   : never
 
+type HookCanReturnUndefined<VF> = VF extends (value: any, c: any) => infer R
+  ? undefined extends Awaited<R>
+    ? true
+    : false
+  : false
+
+type FallbackIfHookReturnsVoid<VF, T extends ZodSchema> =
+  HookCanReturnUndefined<VF> extends true ? ZodValidatorFailureResponse<T> : never
+
 type ValidationFunctionOption<T extends ZodSchema, Target extends keyof ValidationTargets> = {
   validationFunction: (
     schema: T,
@@ -114,7 +123,12 @@ function zValidatorFunction<
   schema: T,
   hook?: HookFn,
   options?: ValidationFunctionOption<T, Target>
-): MiddlewareHandler<E, P, V, ExtractValidationResponse<HookFn>>
+): MiddlewareHandler<
+  E,
+  P,
+  V,
+  ExtractValidationResponse<HookFn> | FallbackIfHookReturnsVoid<HookFn, T>
+>
 
 // implementation
 function zValidatorFunction<
@@ -135,7 +149,12 @@ function zValidatorFunction<
   options?: ValidationFunctionOption<T, Target>
 ):
   | MiddlewareHandler<E, P, V, ZodValidatorFailureResponse<T>>
-  | MiddlewareHandler<E, P, V, ExtractValidationResponse<HookFn>> {
+  | MiddlewareHandler<
+      E,
+      P,
+      V,
+      ExtractValidationResponse<HookFn> | FallbackIfHookReturnsVoid<HookFn, T>
+    > {
   // @ts-expect-error not typed well
   return validator(target, async (value: ValidationTargets[Target], c) => {
     let validatorValue = value
